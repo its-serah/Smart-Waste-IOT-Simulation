@@ -1,0 +1,354 @@
+{
+  "version": 1,
+  "author": "OpenAI - Smart Waste Workshop",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-devkit-c-v4",
+      "id": "esp",
+      "top": 38.4,
+      "left": 124.84,
+      "attrs": {
+        "env": "micropython-20231227-v1.22.0"
+      }
+    },
+    {
+      "type": "wokwi-hc-sr04",
+      "id": "ultrasonic1",
+      "top": -104.1,
+      "left": -91.7,
+      "attrs": {
+        "distance": "100"
+      }
+    },
+    {
+      "type": "wokwi-pir-motion-sensor",
+      "id": "pir1",
+      "top": -96,
+      "left": 258,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo1",
+      "top": 194,
+      "left": -92,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "compactorServo",
+      "top": 194,
+      "left": -230,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "buzzer1",
+      "top": 197,
+      "left": 258,
+      "attrs": {
+        "volume": "0.1"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "ledGreen",
+      "top": 18,
+      "left": 432,
+      "attrs": {
+        "color": "green"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "ledYellow",
+      "top": 67,
+      "left": 432,
+      "attrs": {
+        "color": "yellow"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "ledRed",
+      "top": 116,
+      "left": 432,
+      "attrs": {
+        "color": "red"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "resetButton",
+      "top": 210,
+      "left": 424,
+      "attrs": {
+        "color": "blue",
+        "label": "COLLECT"
+      }
+    },
+    {
+      "type": "wokwi-neopixel-ring",
+      "id": "pixelRing",
+      "top": 38,
+      "left": 552,
+      "attrs": {
+        "pixels": "16"
+      }
+    },
+    {
+      "type": "wokwi-dht22",
+      "id": "dht1",
+      "top": -103,
+      "left": 432,
+      "attrs": {
+        "temperature": "28",
+        "humidity": "55"
+      }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "batteryPot",
+      "top": 306,
+      "left": -92,
+      "attrs": {
+        "value": "0.85"
+      }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "gasPot",
+      "top": 306,
+      "left": 258,
+      "attrs": {
+        "value": "0.2"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "esp:TX",
+      "$serialMonitor:RX",
+      "",
+      []
+    ],
+    [
+      "esp:RX",
+      "$serialMonitor:TX",
+      "",
+      []
+    ],
+    [
+      "ultrasonic1:VCC",
+      "esp:5V",
+      "red",
+      []
+    ],
+    [
+      "ultrasonic1:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "ultrasonic1:TRIG",
+      "esp:5",
+      "green",
+      []
+    ],
+    [
+      "ultrasonic1:ECHO",
+      "esp:18",
+      "blue",
+      []
+    ],
+    [
+      "pir1:VCC",
+      "esp:5V",
+      "red",
+      []
+    ],
+    [
+      "pir1:GND",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "pir1:OUT",
+      "esp:19",
+      "purple",
+      []
+    ],
+    [
+      "servo1:V+",
+      "esp:5V",
+      "red",
+      []
+    ],
+    [
+      "servo1:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "servo1:PWM",
+      "esp:21",
+      "orange",
+      []
+    ],
+    [
+      "compactorServo:V+",
+      "esp:5V",
+      "red",
+      []
+    ],
+    [
+      "compactorServo:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "compactorServo:PWM",
+      "esp:32",
+      "orange",
+      []
+    ],
+    [
+      "buzzer1:1",
+      "esp:22",
+      "orange",
+      []
+    ],
+    [
+      "buzzer1:2",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "ledGreen:A",
+      "esp:25",
+      "green",
+      []
+    ],
+    [
+      "ledGreen:C",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "ledYellow:A",
+      "esp:26",
+      "gold",
+      []
+    ],
+    [
+      "ledYellow:C",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "ledRed:A",
+      "esp:27",
+      "red",
+      []
+    ],
+    [
+      "ledRed:C",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "resetButton:1.l",
+      "esp:14",
+      "blue",
+      []
+    ],
+    [
+      "resetButton:2.l",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "pixelRing:VCC",
+      "esp:5V",
+      "red",
+      []
+    ],
+    [
+      "pixelRing:GND",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "pixelRing:DIN",
+      "esp:13",
+      "limegreen",
+      []
+    ],
+    [
+      "dht1:VCC",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "dht1:GND",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "dht1:SDA",
+      "esp:23",
+      "cyan",
+      []
+    ],
+    [
+      "batteryPot:VCC",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "batteryPot:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "batteryPot:SIG",
+      "esp:34",
+      "green",
+      []
+    ],
+    [
+      "gasPot:VCC",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "gasPot:GND",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "gasPot:SIG",
+      "esp:35",
+      "purple",
+      []
+    ]
+  ],
+  "dependencies": {}
+}
