@@ -15,6 +15,7 @@ FIRMWARE_VERSION = "4.0.0-edge-platform"
 LOCATION = "Beirut Campus - Block A"
 FLEET_ID = "BEY-SMART-WASTE-FLEET"
 GEOHASH = "svc4r8"
+ROUTE_ZONE = "A1"
 
 TRIG_PIN = 5
 ECHO_PIN = 18
@@ -35,6 +36,7 @@ GAS_ADC_PIN = 35
 EMPTY_DISTANCE_CM = 100.0
 FULL_DISTANCE_CM = 8.0
 BIN_VOLUME_LITERS = 120.0
+TRUCK_CAPACITY_LITERS = 2400.0
 
 READINGS_PER_CYCLE = 9
 READ_INTERVAL_MS = 45
@@ -48,6 +50,7 @@ LONG_PRESS_MS = 1800
 STUCK_SENSOR_WINDOW = 10
 COMPACTION_MIN_INTERVAL_MS = 20000
 QUEUE_MAX_DEPTH = 12
+SANITATION_REVIEW_MIN = 180
 
 STATUS_THRESHOLDS = {
     "OK": 0,
@@ -320,6 +323,23 @@ def estimate_remaining_liters(fill_level):
     return round(BIN_VOLUME_LITERS * (100 - fill_level) / 100, 1)
 
 
+def estimate_waste_liters(fill_level):
+    return round(BIN_VOLUME_LITERS * fill_level / 100, 1)
+
+
+def collection_age_min(last_collection_at):
+    return round(max(0, elapsed_ms(last_collection_at)) / 60000, 1)
+
+
+def sanitation_risk(gas_percent, env, collection_age):
+    score = 0
+    score += (gas_percent or 0) * 0.55
+    score += max(0, (env["temp_c"] or 22) - 28) * 1.8
+    score += max(0, (env["humidity"] or 50) - 65) * 0.45
+    score += min(collection_age, SANITATION_REVIEW_MIN) * 0.08
+    return round(clamp(score, 0, 100), 1)
+
+
 def risk_score(fill_level, gas_percent, env, trend, battery_percent, sensor_quality):
     score = fill_level * 0.52
     score += (gas_percent or 0) * 0.22
@@ -374,6 +394,34 @@ def sla_state(priority, eta_overflow_min):
     if priority in ("P1_NEXT_TRUCK", "P2_TODAY"):
         return "DUE_TODAY"
     return "ON_TRACK"
+
+
+def service_window(priority, eta_collect_min, sanitation_score, collection_age):
+    if priority == "P0_IMMEDIATE" or sanitation_score >= 90:
+        return "NOW"
+    if eta_collect_min is not None and eta_collect_min <= 30:
+        return "NEXT_30_MIN"
+    if priority in ("P1_NEXT_TRUCK", "P2_TODAY") or sanitation_score >= 70:
+        return "TODAY"
+    if collection_age >= SANITATION_REVIEW_MIN:
+        return "SANITATION_REVIEW"
+    return "NORMAL_ROUTE"
+
+
+def route_load_percent(waste_liters):
+    return round(clamp((waste_liters / TRUCK_CAPACITY_LITERS) * 100, 0, 100), 1)
+
+
+def pickup_batch(priority, load_percent, queue_depth, confidence):
+    if priority == "P0_IMMEDIATE":
+        return "EXPEDITE"
+    if queue_depth >= QUEUE_MAX_DEPTH:
+        return "RECOVER_OFFLINE"
+    if confidence < 50:
+        return "VERIFY_FIRST"
+    if load_percent >= 4:
+        return "BATCH_WITH_ZONE"
+    return "DEFER_UNTIL_ROUTE"
 
 
 def compaction_decision(fill_level, gas_percent, status, anomalies, last_compaction_at):
@@ -518,7 +566,7 @@ def print_boot():
     print("---------------------------------------")
     print("Device: {} | Firmware: {}".format(DEVICE_ID, FIRMWARE_VERSION))
     print("Location: {}".format(LOCATION))
-    print("Fleet: {} | Geohash: {}".format(FLEET_ID, GEOHASH))
+    print("Fleet: {} | Geohash: {} | Route zone: {}".format(FLEET_ID, GEOHASH, ROUTE_ZONE))
     print("Serial output includes cloud-ready telemetry, edge actions, and digital twin state.")
 
 
@@ -529,7 +577,10 @@ def print_telemetry(payload):
         '"status":"{}","trend":"{}","fill_rate_pct_min":{:.2f},'
         '"eta_collect_min":{},"eta_overflow_min":{},"risk_score":{:.1f},'
         '"health_score":{:.1f},"confidence_score":{:.1f},"carbon_score":{:.1f},'
+        '"sanitation_score":{:.1f},"collection_age_min":{:.1f},'
+        '"waste_liters":{:.1f},"truck_load_percent":{:.1f},'
         '"route_priority":"{}","sla":"{}","edge_action":"{}","compaction":"{}",'
+        '"route_zone":"{}","service_window":"{}","pickup_batch":"{}",'
         '"samples":{},"quality":{},"quality_label":"{}",'
         '"lid":"{}","alert":"{}","battery_percent":{},"battery_raw":{},'
         '"gas_percent":{},"gas_raw":{},"temp_c":{},"humidity":{},'
@@ -553,10 +604,17 @@ def print_telemetry(payload):
             payload["health"],
             payload["confidence"],
             payload["carbon"],
+            payload["sanitation"],
+            payload["collection_age"],
+            payload["waste_liters"],
+            payload["truck_load"],
             payload["priority"],
             payload["sla"],
             payload["edge_action"],
             payload["compaction"],
+            ROUTE_ZONE,
+            payload["service_window"],
+            payload["pickup_batch"],
             payload["samples"],
             payload["quality"],
             payload["quality_label"],
@@ -598,6 +656,7 @@ current_status = "OK"
 last_status = "OK"
 last_env = {"temp_c": 22.0, "humidity": 45.0, "ok": False}
 last_compaction_at = -COMPACTION_MIN_INTERVAL_MS
+last_collection_at = now_ms()
 
 close_lid()
 rest_compactor()
@@ -623,6 +682,7 @@ while True:
             fill_history = []
             urgent_started_at = None
             current_status = "OK"
+            last_collection_at = now_ms()
             close_lid()
             add_event(event_log, "collection_reset", "manual_collection")
             beep(1200, 120)
@@ -665,10 +725,15 @@ while True:
     risk = risk_score(fill_level, gas_percent, last_env, trend, battery_percent, quality)
     priority = route_priority(current_status, risk, eta_collect)
     remaining_liters = estimate_remaining_liters(fill_level)
+    waste_liters = estimate_waste_liters(fill_level)
+    collection_age = collection_age_min(last_collection_at)
+    sanitation = sanitation_risk(gas_percent, last_env, collection_age)
     health = health_score(quality, battery_percent, anomalies, collection_count, compaction_count)
     confidence = confidence_score(sample_count, quality, anomalies, last_env["ok"])
     carbon = carbon_score(priority, eta_collect, remaining_liters)
     sla = sla_state(priority, eta_overflow)
+    window = service_window(priority, eta_collect, sanitation, collection_age)
+    truck_load = route_load_percent(waste_liters)
     compaction_action = compaction_decision(fill_level, gas_percent, current_status, anomalies, last_compaction_at)
     action = edge_action(priority, current_status, anomalies, compaction_action)
 
@@ -709,13 +774,15 @@ while True:
         last_cloud_at = now_ms()
         offline_queue_depth = queue_depth_after_publish(offline_queue_depth, should_publish, ack_ok)
 
-    twin_state = "{}:{}:{}L:{}Q".format(current_status, priority, remaining_liters, offline_queue_depth)
-    checksum_text = "{}:{}:{}:{}:{}:{}".format(
+    pickup = pickup_batch(priority, truck_load, offline_queue_depth, confidence)
+    twin_state = "{}:{}:{}L:{}Q:{}".format(current_status, priority, remaining_liters, offline_queue_depth, window)
+    checksum_text = "{}:{}:{}:{}:{}:{}:{}".format(
         DEVICE_ID,
         cloud_sequence,
         fill_level,
         risk,
         priority,
+        window,
         ",".join(anomalies) if anomalies else "none",
     )
 
@@ -724,6 +791,7 @@ while True:
         "distance_cm": distance,
         "fill_percent": fill_level,
         "remaining_liters": remaining_liters,
+        "waste_liters": waste_liters,
         "status": current_status,
         "trend": trend,
         "fill_rate": fill_rate,
@@ -733,8 +801,13 @@ while True:
         "health": health,
         "confidence": confidence,
         "carbon": carbon,
+        "sanitation": sanitation,
+        "collection_age": collection_age,
+        "truck_load": truck_load,
         "priority": priority,
         "sla": sla,
+        "service_window": window,
+        "pickup_batch": pickup,
         "edge_action": action,
         "compaction": compaction_action,
         "samples": sample_count,

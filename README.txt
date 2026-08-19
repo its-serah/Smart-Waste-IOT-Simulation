@@ -64,14 +64,18 @@ CORE FEATURES
 - Fill-level calculation calibrated from 100 cm empty to 8 cm full
 - Status classification with hysteresis to reduce noisy state changes
 - Remaining capacity estimate in liters
+- Waste volume and estimated truck-load contribution
 - Fill-rate calculation in percent per minute
 - Trend detection: STABLE, FILLING, FILLING_FAST, SURGE, EMPTYING
 - ETA prediction for collection and overflow thresholds
 - Risk score based on fill level, odor/gas, temperature, humidity, battery,
   trend, and sensor quality
+- Sanitation risk score based on odor/gas, environment, and time since the
+  last collection reset
 - Health score for predictive maintenance demonstrations
 - Confidence score for telemetry trust assessment
 - Carbon score for route optimization demonstrations
+- Route zone, service-window, and pickup-batch recommendations
 - Route priority levels from P0_IMMEDIATE to P4_NORMAL
 - SLA state classification: ON_TRACK, DUE_TODAY, DUE_30_MIN, BREACH_RISK
 - Edge action selection for dispatch, compaction, maintenance, or telemetry
@@ -151,6 +155,7 @@ Example:
   "distance_cm": 50.2,
   "fill_percent": 54.1,
   "remaining_liters": 55.1,
+  "waste_liters": 64.9,
   "status": "MONITOR",
   "trend": "FILLING",
   "fill_rate_pct_min": 2.35,
@@ -160,10 +165,16 @@ Example:
   "health_score": 91.2,
   "confidence_score": 94.0,
   "carbon_score": 38.0,
+  "sanitation_score": 16.2,
+  "collection_age_min": 4.1,
+  "truck_load_percent": 2.7,
   "route_priority": "P3_WATCHLIST",
   "sla": "ON_TRACK",
   "edge_action": "TELEMETRY_ONLY",
   "compaction": "SKIP",
+  "route_zone": "A1",
+  "service_window": "NORMAL_ROUTE",
+  "pickup_batch": "DEFER_UNTIL_ROUTE",
   "samples": 9,
   "quality": 96,
   "quality_label": "GOOD",
@@ -179,9 +190,9 @@ Example:
   "queue_depth": 0,
   "cloud_ack": true,
   "anomalies": "none",
-  "twin": "MONITOR:P3_WATCHLIST:55.1L:0Q",
+  "twin": "MONITOR:P3_WATCHLIST:55.1L:0Q:NORMAL_ROUTE",
   "cloud_seq": 3,
-  "checksum": 42519
+  "checksum": 803
 }
 ```
 
